@@ -1,0 +1,181 @@
+﻿cargo :     Blocking 
+waiting for file lock
+ on build directory
+위치 줄:1 문자:51
++ ... LIBCLANG_PATH =
+ "C:\Program Files\LL
+VM\bin"; cargo check 
+2>&1 | Out-F ...
++                    
+                     
+         ~~~~~~~~~~~~
+~~~~
+    + CategoryInfo   
+           : NotSpe  
+  cified: (    Blo   
+ cking wa...build    
+ directory:Strin    g
+) [], RemoteExc    ep
+tion
+    + FullyQualified 
+   ErrorId : Native  
+  CommandError
+ 
+   Compiling bindgen 
+v0.72.1
+   Compiling winfsp-s
+ys v0.12.1+winfsp-2.1
+    Checking winfsp v
+0.12.4+winfsp-2.1
+    Checking tauri-ap
+p v0.1.0 (D:\workspac
+e\tauri\virtual_drive
+\src-tauri)
+warning: unused impor
+ts: `DirInfo` and `Wi
+deNameInfo`
+  --> src\filesystem.
+rs:10:5
+   |
+10 |     DirInfo, Dir
+Marker, FileInfo, Fil
+eSecurity, FileSystem
+Context, OpenFileInfo
+, WideNameInfo,
+   |     ^^^^^^^     
+                     
+                     
+                     
+  ^^^^^^^^^^^^
+   |
+   = note: `#[warn(un
+used_imports)]` on by
+ default
+
+warning: field `is_di
+rectory` is never rea
+d
+  --> src\filesystem.
+rs:18:9
+   |
+16 | pub struct SftpF
+ileContext {
+   |            -----
+---------- field in t
+his struct
+17 |     pub path: St
+ring,
+18 |     pub is_direc
+tory: bool,
+   |         ^^^^^^^^
+^^^^
+   |
+   = note: `#[warn(de
+ad_code)]` on by defa
+ult
+
+warning: fields `driv
+e_letter` and `client
+` are never read
+  --> src\mount.rs:13
+:9
+   |
+11 | pub struct Mount
+edDrive {
+   |            -----
+------- fields in thi
+s struct
+12 |     pub connecti
+on_id: String,
+13 |     pub drive_le
+tter: char,
+   |         ^^^^^^^^
+^^^^
+14 |     pub client: 
+SharedSftpClient,
+   |         ^^^^^^
+
+warning: field `sessi
+on` is never read
+  --> src\sftp_client
+.rs:13:5
+   |
+12 | pub struct SftpC
+lient {
+   |            -----
+----- field in this s
+truct
+13 |     session: Ses
+sion,
+   |     ^^^^^^^
+
+warning: multiple met
+hods are never used
+   --> src\sftp_clien
+t.rs:63:12
+    |
+17  | impl SftpClient
+ {
+    | ---------------
+ methods in this impl
+ementation
+...
+63  |     pub fn read
+_dir(&self, path: &st
+r) -> Result<Vec<(Str
+ing, FileStat)>, Stri
+ng> {
+    |            ^^^^
+^^^^
+...
+89  |     pub fn read
+_file(&self, path: &s
+tr) -> Result<Vec<u8>
+, String> {
+    |            ^^^^
+^^^^^
+...
+140 |     pub fn remo
+ve_file(&self, path: 
+&str) -> Result<(), S
+tring> {
+    |            ^^^^
+^^^^^^^
+...
+147 |     pub fn crea
+te_dir(&self, path: &
+str) -> Result<(), St
+ring> {
+    |            ^^^^
+^^^^^^
+...
+154 |     pub fn remo
+ve_dir(&self, path: &
+str) -> Result<(), St
+ring> {
+    |            ^^^^
+^^^^^^
+...
+161 |     pub fn rena
+me(&self, from: &str,
+ to: &str) -> Result<
+(), String> {
+    |            ^^^^
+^^
+...
+168 |     pub fn is_c
+onnected(&self) -> bo
+ol {
+    |            ^^^^
+^^^^^^^^
+
+warning: `tauri-app` 
+(lib) generated 5 war
+nings (run `cargo fix
+ --lib -p tauri-app` 
+to apply 1 suggestion
+)
+    Finished `dev` pr
+ofile [unoptimized + 
+debuginfo] target(s) 
+in 38.67s

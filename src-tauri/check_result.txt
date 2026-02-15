@@ -1,0 +1,119 @@
+﻿cargo :    Compiling 
+bindgen v0.72.1
+위치 줄:1 문자:51
++ ... LIBCLANG_PATH =
+ "C:\Program Files\LL
+VM\bin"; cargo check 
+2>&1 | Out-F ...
++                    
+                     
+         ~~~~~~~~~~~~
+~~~~
+    + CategoryInfo   
+           : NotSpe  
+  cified: (   Comp   
+ iling bindgen v0    
+.72.1:String) []    ,
+ RemoteExceptio    n
+    + FullyQualified 
+   ErrorId : Native  
+  CommandError
+ 
+   Compiling winfsp-s
+ys v0.12.1+winfsp-2.1
+    Checking winfsp v
+0.12.4+winfsp-2.1
+    Checking tauri-ap
+p v0.1.0 (D:\workspac
+e\tauri\virtual_drive
+\src-tauri)
+warning: unused impor
+t: `U16CString`
+  --> src\filesystem.
+rs:13:23
+   |
+13 | use winfsp::{U16
+CStr, U16CString};
+   |                 
+      ^^^^^^^^^^
+   |
+   = note: `#[warn(un
+used_imports)]` on by
+ default
+
+warning: unused impor
+ts: `FSP_FSCTL_DIR_IN
+FO` and `FSP_FSCTL_FI
+LE_INFO`
+  --> src\filesystem.
+rs:14:18
+   |
+14 | use winfsp_sys::
+{FSP_FSCTL_DIR_INFO, 
+FSP_FSCTL_FILE_INFO};
+   |                 
+ ^^^^^^^^^^^^^^^^^^  
+^^^^^^^^^^^^^^^^^^^
+
+error[E0599]: no meth
+od named `size` found
+ for struct `DirInfo`
+ in the current scope
+   --> src\filesystem
+.rs:281:39
+    |
+281 |             let
+ entry_size = dir_inf
+o.size();
+    |                
+                     
+  ^^^^ private field,
+ not a method
+    |
+help: there is a meth
+od `set_size` with a 
+similar name, but wit
+h different arguments
+   --> C:\Users\freee
+\.cargo\registry\src\
+index.crates.io-1949c
+f8c6b5b557f\winfsp-0.
+12.4+winfsp-2.1\src\f
+ilesystem\internals\w
+idenameinfo.rs:16:5
+    |
+16  |     fn set_size
+(&mut self, buffer_si
+ze: u16);
+    |     ^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^
+
+error[E0599]: no meth
+od named `as_bytes` f
+ound for struct `DirI
+nfo` in the current s
+cope
+   --> src\filesystem
+.rs:287:34
+    |
+287 |             let
+ bytes = dir_info.as_
+bytes();
+    |                
+                  ^^^
+^^^^^ method not foun
+d in `DirInfo`
+
+For more information 
+about this error, try
+ `rustc --explain E05
+99`.
+warning: `tauri-app` 
+(lib) generated 2 war
+nings
+error: could not comp
+ile `tauri-app` (lib)
+ due to 2 previous er
+rors; 2 warnings emit
+ted

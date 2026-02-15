@@ -1,0 +1,116 @@
+﻿cargo :     Checking 
+tauri-app v0.1.0 (D:\
+workspace\tauri\virtu
+al_drive\src-tauri)
+위치 줄:1 문자:1
++ cargo check 2>&1 | 
+Out-File -Encoding ut
+f8 build_output.txt
++ ~~~~~~~~~~~~~~~~
+    + CategoryInfo   
+           : NotSpe  
+  cified: (    Che   
+ cking ta...rive\    
+src-tauri):Strin    g
+) [], RemoteExc    ep
+tion
+    + FullyQualified 
+   ErrorId : Native  
+  CommandError
+ 
+warning: unused impor
+t: `crate::credential
+s`
+ --> src\sshfs.rs:1:5
+  |
+1 | use crate::creden
+tials;
+  |     ^^^^^^^^^^^^^
+^^^^^
+  |
+  = note: `#[warn(unu
+sed_imports)]` on by 
+default
+
+warning: unused impor
+t: `crate::storage`
+ --> src\sshfs.rs:2:5
+  |
+2 | use crate::storag
+e;
+  |     ^^^^^^^^^^^^^
+^
+
+warning: unused impor
+ts: `DriveStatusType`
+ and `DriveStatus`
+ --> src\sshfs.rs:3:3
+0
+  |
+3 | use crate::types:
+:{AuthType, DriveStat
+us, DriveStatusType, 
+PrerequisiteStatus, S
+shConnection};
+  |                  
+            ^^^^^^^^^
+^^  ^^^^^^^^^^^^^^^
+
+error[E0599]: no meth
+od named `delete_cred
+ential` found for str
+uct `keyring::Entry` 
+in the current scope
+  --> src\credentials
+.rs:32:17
+   |
+32 |     match entry.
+delete_credential() {
+   |                 
+^^^^^^^^^^^^^^^^^
+   |
+help: there is a meth
+od `get_credential` w
+ith a similar name
+   |
+32 -     match entry.
+delete_credential() {
+32 +     match entry.
+get_credential() {
+   |
+
+warning: unused varia
+ble: `password`
+   --> src\commands.r
+s:151:51
+    |
+151 | pub fn test_con
+nection(connection: S
+shConnection, passwor
+d: Option<String>) ->
+ Result<bool, String>
+ {
+    |                
+                     
+              ^^^^^^^
+^ help: if this is in
+tentional, prefix it 
+with an underscore: `
+_password`
+    |
+    = note: `#[warn(u
+nused_variables)]` on
+ by default
+
+For more information 
+about this error, try
+ `rustc --explain E05
+99`.
+warning: `tauri-app` 
+(lib) generated 4 war
+nings
+error: could not comp
+ile `tauri-app` (lib)
+ due to 1 previous er
+ror; 4 warnings emitt
+ed
