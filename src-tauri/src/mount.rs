@@ -108,7 +108,7 @@ impl MountManager {
 }
 
 /// WinFsp 설치 확인
-fn find_winfsp_path() -> Option<String> {
+pub fn find_winfsp_path() -> Option<String> {
     // 1. 먼저 레지스트리에서 설치 경로 확인
     use winreg::enums::*;
     use winreg::RegKey;

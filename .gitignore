@@ -12,3 +12,6 @@ vite.config.ts.timestamp-*
 # Rust
 src-tauri/target/
 src-tauri/**/target/
+
+# Exception: allow release bundles
+!src-tauri/target/release/bundle/

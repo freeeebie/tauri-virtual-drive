@@ -7,6 +7,10 @@ use std::io::{Read, Write};
 use std::net::TcpStream;
 use std::path::Path;
 use std::sync::Arc;
+use std::time::Duration;
+
+const READ_TIMEOUT_SECS: u64 = 60;
+const WRITE_TIMEOUT_SECS: u64 = 60;
 
 /// SFTP 클라이언트 래퍼
 #[allow(dead_code)]
@@ -18,9 +22,15 @@ pub struct SftpClient {
 impl SftpClient {
     /// 새 SFTP 연결 생성
     pub fn connect(connection: &SshConnection, password: Option<&str>) -> Result<Self, String> {
-        // TCP 연결
+        // TCP 연결 (DNS 해석 포함)
         let addr = format!("{}:{}", connection.host, connection.port);
         let tcp = TcpStream::connect(&addr).map_err(|e| format!("TCP 연결 실패: {}", e))?;
+
+        // 읽기/쓰기 타임아웃 설정
+        tcp.set_read_timeout(Some(Duration::from_secs(READ_TIMEOUT_SECS)))
+            .map_err(|e| format!("읽기 타임아웃 설정 실패: {}", e))?;
+        tcp.set_write_timeout(Some(Duration::from_secs(WRITE_TIMEOUT_SECS)))
+            .map_err(|e| format!("쓰기 타임아웃 설정 실패: {}", e))?;
 
         // SSH 세션 생성
         let mut session = Session::new().map_err(|e| format!("SSH 세션 생성 실패: {}", e))?;
@@ -28,6 +38,9 @@ impl SftpClient {
         session
             .handshake()
             .map_err(|e| format!("SSH 핸드셰이크 실패: {}", e))?;
+
+        // Known Hosts 검증
+        Self::verify_known_host(&session, &connection.host, connection.port)?;
 
         // 인증
         match connection.auth_type {
@@ -58,6 +71,41 @@ impl SftpClient {
             .map_err(|e| format!("SFTP 세션 시작 실패: {}", e))?;
 
         Ok(Self { session, sftp })
+    }
+
+    fn verify_known_host(session: &Session, host: &str, port: u16) -> Result<(), String> {
+        let known_hosts_path = std::env::var("USERPROFILE")
+            .or_else(|_| std::env::var("HOME"))
+            .ok()
+            .map(|h| Path::new(&h).join(".ssh").join("known_hosts"))
+            .filter(|p| p.exists());
+
+        if let Some(path) = known_hosts_path {
+            let hostport = format!("[{}]:{}", host, port);
+
+            let mut known_hosts = session
+                .known_hosts()
+                .map_err(|e| format!("known_hosts 초기화 실패: {}", e))?;
+            known_hosts
+                .read_file(&path, ssh2::KnownHostFileKind::OpenSSH)
+                .map_err(|e| format!("known_hosts 파일 로드 실패: {}", e))?;
+
+            let host_key = session.host_key();
+            if let Some((key, _)) = host_key {
+                match known_hosts.check(&hostport, key) {
+                    ssh2::CheckResult::Match => {}
+                    ssh2::CheckResult::Mismatch => {
+                        return Err(format!(
+                            "호스트 키 검증 실패: '{}'의 호스트 키가 known_hosts와 일치하지 않습니다.",
+                            hostport
+                        ));
+                    }
+                    ssh2::CheckResult::NotFound | ssh2::CheckResult::Failure => {}
+                }
+            }
+        }
+
+        Ok(())
     }
 
     /// 디렉토리 목록 읽기

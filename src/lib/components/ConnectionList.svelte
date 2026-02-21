@@ -48,6 +48,12 @@
         }
     }
 
+    function handleDisconnect(conn: ConnectionWithStatus) {
+        if (confirm(`"${conn.name}" 연결을 해제하시겠습니까?`)) {
+            onDisconnect(conn.mountedDriveLetter!);
+        }
+    }
+
     function handleDelete(conn: ConnectionWithStatus) {
         if (confirm(`"${conn.name}" 연결을 삭제하시겠습니까?`)) {
             onDelete(conn.id);
@@ -96,8 +102,7 @@
                     {#if conn.isConnected}
                         <button
                             class="btn-disconnect"
-                            onclick={() =>
-                                onDisconnect(conn.mountedDriveLetter!)}
+                            onclick={() => handleDisconnect(conn)}
                         >
                             연결 해제
                         </button>

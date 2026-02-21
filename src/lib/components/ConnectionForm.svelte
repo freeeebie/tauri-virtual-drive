@@ -22,6 +22,40 @@
     let password = $state("");
     let isTesting = $state(false);
     let testResult = $state<{ success: boolean; message: string } | null>(null);
+    let validationErrors = $state<Record<string, string>>({});
+
+    function validateForm(): boolean {
+        const errors: Record<string, string> = {};
+
+        if (!formData.name.trim()) {
+            errors.name = "연결 이름을 입력해주세요.";
+        }
+
+        if (!formData.host.trim()) {
+            errors.host = "호스트를 입력해주세요.";
+        }
+
+        if (!formData.port || formData.port < 1 || formData.port > 65535) {
+            errors.port = "포트 번호는 1~65535 사이여야 합니다.";
+        }
+
+        if (!formData.username.trim()) {
+            errors.username = "사용자명을 입력해주세요.";
+        }
+
+        if (!formData.remote_path.trim()) {
+            errors.remote_path = "원격 경로를 입력해주세요.";
+        } else if (!formData.remote_path.startsWith("/")) {
+            errors.remote_path = "원격 경로는 /로 시작해야 합니다.";
+        }
+
+        if (formData.auth_type === "key" && !formData.key_path?.trim()) {
+            errors.key_path = "SSH 키 경로를 입력해주세요.";
+        }
+
+        validationErrors = errors;
+        return Object.keys(errors).length === 0;
+    }
 
     function handleAuthTypeChange(e: Event) {
         const target = e.target as HTMLSelectElement;
@@ -32,11 +66,9 @@
         isTesting = true;
         testResult = null;
 
-        // 빈 문자열 drive_letter 처리 (Option<char> 호환)
         const payload = { ...formData };
         if (payload.drive_letter === "") {
-            // @ts-ignore
-            payload.drive_letter = null;
+            payload.drive_letter = undefined;
         }
 
         try {
@@ -55,10 +87,13 @@
     function handleSubmit(e: Event) {
         e.preventDefault();
 
+        if (!validateForm()) {
+            return;
+        }
+
         const payload = { ...formData };
         if (payload.drive_letter === "") {
-            // @ts-ignore
-            payload.drive_letter = null;
+            payload.drive_letter = undefined;
         }
 
         onSave(payload, password || undefined);
@@ -77,8 +112,11 @@
                     id="name"
                     bind:value={formData.name}
                     placeholder="예: 개발 서버"
-                    required
+                    class:error={validationErrors.name}
                 />
+                {#if validationErrors.name}
+                    <span class="field-error">{validationErrors.name}</span>
+                {/if}
             </div>
 
             <div class="form-row">
@@ -89,8 +127,11 @@
                         id="host"
                         bind:value={formData.host}
                         placeholder="예: 192.168.1.100"
-                        required
+                        class:error={validationErrors.host}
                     />
+                    {#if validationErrors.host}
+                        <span class="field-error">{validationErrors.host}</span>
+                    {/if}
                 </div>
                 <div class="form-group">
                     <label for="port">포트</label>
@@ -100,8 +141,11 @@
                         bind:value={formData.port}
                         min="1"
                         max="65535"
-                        required
+                        class:error={validationErrors.port}
                     />
+                    {#if validationErrors.port}
+                        <span class="field-error">{validationErrors.port}</span>
+                    {/if}
                 </div>
             </div>
 
@@ -112,8 +156,11 @@
                     id="username"
                     bind:value={formData.username}
                     placeholder="예: ubuntu"
-                    required
+                    class:error={validationErrors.username}
                 />
+                {#if validationErrors.username}
+                    <span class="field-error">{validationErrors.username}</span>
+                {/if}
             </div>
 
             <div class="form-group">
@@ -146,7 +193,11 @@
                         id="key_path"
                         bind:value={formData.key_path}
                         placeholder="예: C:/Users/user/.ssh/id_rsa"
+                        class:error={validationErrors.key_path}
                     />
+                    {#if validationErrors.key_path}
+                        <span class="field-error">{validationErrors.key_path}</span>
+                    {/if}
                 </div>
             {/if}
 
@@ -157,8 +208,11 @@
                     id="remote_path"
                     bind:value={formData.remote_path}
                     placeholder="예: /home/user"
-                    required
+                    class:error={validationErrors.remote_path}
                 />
+                {#if validationErrors.remote_path}
+                    <span class="field-error">{validationErrors.remote_path}</span>
+                {/if}
             </div>
 
             <div class="form-group">
@@ -269,6 +323,18 @@
         outline: none;
         border-color: var(--accent, #89b4fa);
         box-shadow: 0 0 0 3px rgba(137, 180, 250, 0.2);
+    }
+
+    input.error,
+    select.error {
+        border-color: #f38ba8;
+    }
+
+    .field-error {
+        display: block;
+        color: #f38ba8;
+        font-size: 0.75rem;
+        margin-top: 4px;
     }
 
     input[type="number"] {

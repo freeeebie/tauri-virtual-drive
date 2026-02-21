@@ -2,6 +2,7 @@
 //! winfsp-rs 0.12 API 사용
 
 use crate::sftp_client::SharedSftpClient;
+use log::{debug, warn};
 use parking_lot::{Mutex, RwLock};
 use std::collections::HashMap;
 use std::ffi::c_void;
@@ -13,8 +14,21 @@ use winfsp::filesystem::{
 use winfsp::host::{FileSystemHost, VolumeParams};
 use winfsp::U16CStr;
 
-/// stat 캐시 TTL (초)
-const STAT_CACHE_TTL_SECS: u64 = 5;
+#[cfg(debug_assertions)]
+macro_rules! winfsp_debug {
+    ($($arg:tt)*) => (debug!($($arg)*))
+}
+
+#[cfg(not(debug_assertions))]
+macro_rules! winfsp_debug {
+    ($($arg:tt)*) => {{}};
+}
+
+/// stat 캐시 TTL (초) - 네트워크 파일시스템에 최적화
+const STAT_CACHE_TTL_SECS: u64 = 10;
+
+/// 캐시 최대 크기 (LRU eviction을 위한 제한)
+const MAX_CACHE_ENTRIES: usize = 1000;
 
 /// 캐시된 stat 엔트리
 struct CachedStat {
@@ -32,6 +46,37 @@ struct CachedDir {
 struct StatCache {
     stats: Mutex<HashMap<String, CachedStat>>,
     dirs: Mutex<HashMap<String, CachedDir>>,
+}
+
+impl StatCache {
+    fn evict_if_needed(&self) {
+        let mut stats = self.stats.lock();
+        if stats.len() >= MAX_CACHE_ENTRIES {
+            let evict_count = MAX_CACHE_ENTRIES / 10;
+            let keys: Vec<_> = stats
+                .iter()
+                .take(evict_count)
+                .map(|(k, _)| k.clone())
+                .collect();
+            for key in keys {
+                stats.remove(&key);
+            }
+        }
+        drop(stats);
+
+        let mut dirs = self.dirs.lock();
+        if dirs.len() >= MAX_CACHE_ENTRIES / 10 {
+            let evict_count = MAX_CACHE_ENTRIES / 100;
+            let keys: Vec<_> = dirs
+                .iter()
+                .take(evict_count)
+                .map(|(k, _)| k.clone())
+                .collect();
+            for key in keys {
+                dirs.remove(&key);
+            }
+        }
+    }
 }
 
 /// 파일 컨텍스트 - 열린 파일/디렉토리 정보
@@ -68,12 +113,13 @@ impl SftpFileSystem {
     /// 캐시된 stat 조회 (TTL 내이면 캐시 반환)
     fn cached_stat(&self, path: &str) -> Option<ssh2::FileStat> {
         let cache = self.cache.stats.lock();
-        if let Some(entry) = cache.get(path) {
+        cache.get(path).and_then(|entry| {
             if entry.cached_at.elapsed().as_secs() < STAT_CACHE_TTL_SECS {
-                return Some(entry.stat.clone());
+                Some(entry.stat.clone())
+            } else {
+                None
             }
-        }
-        None
+        })
     }
 
     /// SFTP stat 호출 + 캐시 저장
@@ -86,7 +132,8 @@ impl SftpFileSystem {
         let client = self.client.lock();
         let stat = client.stat(path)?;
         drop(client);
-        // 3. 캐시 저장
+        // 3. 캐시 공간 확보 후 저장
+        self.cache.evict_if_needed();
         self.cache.stats.lock().insert(
             path.to_string(),
             CachedStat {
@@ -112,7 +159,8 @@ impl SftpFileSystem {
         let client = self.client.lock();
         let entries = client.read_dir(path)?;
         drop(client);
-        // 3. 캐시 저장 (각 파일의 stat도 함께 캐시)
+        // 3. 캐시 공간 확보 후 저장
+        self.cache.evict_if_needed();
         let now = Instant::now();
         {
             let mut stat_cache = self.cache.stats.lock();
@@ -241,9 +289,11 @@ impl FileSystemContext for SftpFileSystem {
                 } else {
                     0x80u32 // FILE_ATTRIBUTE_NORMAL
                 };
-                eprintln!(
+                winfsp_debug!(
                     "[WinFsp] get_security_by_name '{}' -> OK [lock={}ms, sftp={}ms]",
-                    remote_path, lock_ms, sftp_ms
+                    remote_path,
+                    lock_ms,
+                    sftp_ms
                 );
                 Ok(FileSecurity {
                     attributes: attrs,
@@ -252,9 +302,11 @@ impl FileSystemContext for SftpFileSystem {
                 })
             }
             Err(_) => {
-                eprintln!(
+                winfsp_debug!(
                     "[WinFsp] get_security_by_name '{}' -> NotFound [lock={}ms, sftp={}ms]",
-                    remote_path, lock_ms, sftp_ms
+                    remote_path,
+                    lock_ms,
+                    sftp_ms
                 );
                 Err(IoError::new(ErrorKind::NotFound, "File not found").into())
             }
@@ -274,7 +326,7 @@ impl FileSystemContext for SftpFileSystem {
         let t0 = Instant::now();
         let (stat_info, is_dir) = {
             let stat = self.stat_with_cache(&remote_path).map_err(|e| {
-                eprintln!(
+                winfsp_debug!(
                     "[WinFsp] open '{}' -> FAIL [duration={}ms]: {}",
                     remote_path,
                     t0.elapsed().as_millis(),
@@ -284,9 +336,10 @@ impl FileSystemContext for SftpFileSystem {
             })?;
 
             let duration_ms = t0.elapsed().as_millis();
-            eprintln!(
+            winfsp_debug!(
                 "[WinFsp] open '{}' [duration={}ms]",
-                remote_path, duration_ms
+                remote_path,
+                duration_ms
             );
 
             let info = Self::stat_to_file_info(&stat);
@@ -303,12 +356,12 @@ impl FileSystemContext for SftpFileSystem {
         };
         self.open_files.write().insert(handle, context);
 
-        eprintln!("[WinFsp]   -> handle={}, is_dir={}", handle, is_dir);
+        winfsp_debug!("[WinFsp]   -> handle={}, is_dir={}", handle, is_dir);
         Ok(handle)
     }
 
     fn close(&self, file_context: Self::FileContext) {
-        eprintln!("[WinFsp] close: handle={}", file_context);
+        winfsp_debug!("[WinFsp] close: handle={}", file_context);
         self.open_files.write().remove(&file_context);
     }
 
@@ -340,7 +393,7 @@ impl FileSystemContext for SftpFileSystem {
         let bytes_read = data.len().min(buffer.len());
         buffer[..bytes_read].copy_from_slice(&data[..bytes_read]);
 
-        eprintln!(
+        winfsp_debug!(
             "[WinFsp] read '{}' offset={} len={} -> {}B [lock={}ms, sftp={}ms]",
             path,
             offset,
@@ -398,9 +451,11 @@ impl FileSystemContext for SftpFileSystem {
         // drop(client) 제거됨 (stat_with_cache가 처리)
 
         *file_info = Self::stat_to_file_info(&stat);
-        eprintln!(
+        winfsp_debug!(
             "[WinFsp] get_file_info '{}' -> size={} [duration={}ms]",
-            path, file_info.file_size, duration_ms
+            path,
+            file_info.file_size,
+            duration_ms
         );
         Ok(())
     }
@@ -409,7 +464,7 @@ impl FileSystemContext for SftpFileSystem {
         &self,
         volume_info: &mut winfsp::filesystem::VolumeInfo,
     ) -> winfsp::Result<()> {
-        eprintln!("[WinFsp] get_volume_info");
+        winfsp_debug!("[WinFsp] get_volume_info");
         volume_info.total_size = 1024 * 1024 * 1024 * 100; // 100GB (가상)
         volume_info.free_size = 1024 * 1024 * 1024 * 50; // 50GB (가상)
         volume_info.set_volume_label("SSHFS");
@@ -432,7 +487,7 @@ impl FileSystemContext for SftpFileSystem {
             (context.path.clone(), context.is_directory)
         }; // open_files lock 해제
 
-        eprintln!(
+        winfsp_debug!(
             "[WinFsp] read_directory: handle={}, path='{}', is_dir={}, marker_none={}",
             file_context,
             dir_path,
@@ -441,7 +496,7 @@ impl FileSystemContext for SftpFileSystem {
         );
 
         if !is_dir {
-            eprintln!("[WinFsp]   -> Not a directory!");
+            warn!("[WinFsp]   -> Not a directory!");
             return Err(IoError::new(ErrorKind::Other, "Not a directory").into());
         }
 
@@ -454,17 +509,18 @@ impl FileSystemContext for SftpFileSystem {
 
         // 원격 디렉토리 목록 읽기 - 캐시 사용
         let entries = self.readdir_with_cache(&dir_path).map_err(|e| {
-            eprintln!("[WinFsp]   -> read_dir failed: {}", e);
+            winfsp_debug!("[WinFsp]   -> read_dir failed: {}", e);
             IoError::new(ErrorKind::Other, e)
         })?;
 
         let duration_ms = t0.elapsed().as_millis();
-        eprintln!(
+        winfsp_debug!(
             "[WinFsp] read_directory '{}' fetched [duration={}ms]",
-            dir_path, duration_ms
+            dir_path,
+            duration_ms
         );
 
-        eprintln!("[WinFsp]   -> {} entries found", entries.len());
+        winfsp_debug!("[WinFsp]   -> {} entries found", entries.len());
 
         // ".", ".." 및 실제 파일을 하나의 리스트로 구성
         let mut all_entries: Vec<(String, FileInfo)> = Vec::new();
@@ -501,13 +557,13 @@ impl FileSystemContext for SftpFileSystem {
             *dir_info.file_info_mut() = file_info.clone();
 
             if dir_info.set_name(name).is_err() {
-                eprintln!("[WinFsp]   -> set_name failed for '{}'", name);
+                winfsp_debug!("[WinFsp]   -> set_name failed for '{}'", name);
                 continue; // 이름이 너무 긴 경우 스킵
             }
 
             // 버퍼에 추가 (공간 부족하면 중단)
             if !dir_info.append_to_buffer(buffer, &mut cursor) {
-                eprintln!("[WinFsp]   -> buffer full at '{}'", name);
+                winfsp_debug!("[WinFsp]   -> buffer full at '{}'", name);
                 break;
             }
         }
@@ -515,7 +571,7 @@ impl FileSystemContext for SftpFileSystem {
         // 버퍼 종료 마커 추가
         DirInfo::<255>::finalize_buffer(buffer, &mut cursor);
 
-        eprintln!("[WinFsp]   -> returning {} bytes", cursor);
+        winfsp_debug!("[WinFsp]   -> returning {} bytes", cursor);
         Ok(cursor)
     }
 }
@@ -531,19 +587,19 @@ pub fn create_filesystem_host(
 
     let fs = SftpFileSystem::new(client, remote_root);
 
-    // VolumeParams 설정 - Disk 타입 파일시스템 (prefix 없이)
+    // VolumeParams 설정 - 네트워크 파일시스템에 최적화
     let mut volume_params = VolumeParams::default();
     volume_params
         .filesystem_name("SSHFS")
-        .sector_size(512)
-        .sectors_per_allocation_unit(1)
+        .sector_size(4096) // 네트워크 파일시스템에 효율적인 4KB
+        .sectors_per_allocation_unit(64) // 256KB allocation unit - 네트워크 효율성
         .max_component_length(255)
         .volume_creation_time(unix_to_windows_time(1704067200))
         .volume_serial_number(0x53534846) // "SSHF"
-        .file_info_timeout(5000) // 5초 캐시 — 네트워크 파일시스템 성능 최적화
-        .case_sensitive_search(false) // Windows 호환을 위해 대소문자 무시 검색
-        .case_preserved_names(true) // 대소문자 보존
-        .unicode_on_disk(true) // UTF-16 지원
+        .file_info_timeout(5000) // 5초 캐시
+        .case_sensitive_search(false)
+        .case_preserved_names(true)
+        .unicode_on_disk(true)
         .read_only_volume(false)
         .post_cleanup_when_modified_only(true);
 

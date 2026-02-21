@@ -9,11 +9,29 @@ mod storage;
 mod types;
 
 use mount::MountManager;
+use std::env;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
     Manager,
 };
+
+pub fn setup_winfsp_path() {
+    if let Some(dll_path) = mount::find_winfsp_path() {
+        if let Some(bin_dir) = std::path::Path::new(&dll_path).parent() {
+            if let Ok(current_path) = env::var("PATH") {
+                let bin_str = bin_dir.to_string_lossy().to_string();
+                if !current_path.contains(&bin_str) {
+                    let new_path = format!("{};{}", current_path, bin_str);
+                    env::set_var("PATH", new_path);
+                    println!("WinFsp path added to PATH: {}", bin_str);
+                }
+            }
+        }
+    } else {
+        println!("Warning: Could not find WinFsp installation");
+    }
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
